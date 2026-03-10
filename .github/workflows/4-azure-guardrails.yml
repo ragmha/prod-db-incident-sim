@@ -1,0 +1,79 @@
+name: Step 4 # Azure Guardrails
+
+on:
+  push:
+    paths:
+      - 'evidence/step-4-azure.txt'
+
+permissions:
+  contents: read
+  actions: write
+  issues: write
+
+env:
+  STEP_NUMBER: 4
+  NEXT_STEP_NUMBER: 5
+  NEXT_STEP_FILE: ".github/steps/5-github-guardrails.md"
+  EXERCISE_TOOLKIT_REF: v0.7.0
+
+jobs:
+  find_exercise:
+    name: Find Exercise Issue
+    uses: skills/exercise-toolkit/.github/workflows/find-exercise-issue.yml@v0.7.0
+
+  check_step:
+    name: Validate Step 4
+    needs: [find_exercise]
+    runs-on: ubuntu-latest
+    env:
+      ISSUE_NUMBER: ${{ needs.find_exercise.outputs.issue-number }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate evidence
+        run: |
+          if [ -f "evidence/step-4-azure.txt" ]; then
+            echo "✅ Azure guardrails evidence found"
+          else
+            echo "❌ No evidence file"
+            exit 1
+          fi
+
+      - name: Get response templates
+        uses: actions/checkout@v4
+        with:
+          repository: skills/exercise-toolkit
+          path: exercise-toolkit
+          ref: ${{ env.EXERCISE_TOOLKIT_REF }}
+
+      - name: Post step finished
+        uses: GrantBirki/comment@v2.1.1
+        with:
+          repository: ${{ github.repository }}
+          issue-number: ${{ env.ISSUE_NUMBER }}
+          file: exercise-toolkit/markdown-templates/step-feedback/step-finished-prepare-next-step.md
+          vars: |
+            next_step_number: ${{ env.NEXT_STEP_NUMBER }}
+
+      - name: Post next step content
+        uses: GrantBirki/comment@v2.1.1
+        with:
+          repository: ${{ github.repository }}
+          issue-number: ${{ env.ISSUE_NUMBER }}
+          file: ${{ env.NEXT_STEP_FILE }}
+
+      - name: Post watching message
+        uses: GrantBirki/comment@v2.1.1
+        with:
+          repository: ${{ github.repository }}
+          issue-number: ${{ env.ISSUE_NUMBER }}
+          file: exercise-toolkit/markdown-templates/step-feedback/watching-for-progress.md
+
+      - name: Disable current and enable next
+        run: |
+          gh workflow disable "Step ${{ env.STEP_NUMBER }}"
+          gh workflow enable "Step ${{ env.NEXT_STEP_NUMBER }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

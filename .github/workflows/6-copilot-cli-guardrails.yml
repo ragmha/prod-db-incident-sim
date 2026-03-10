@@ -1,0 +1,101 @@
+name: Step 6 # Copilot CLI Guardrails
+
+on:
+  push:
+    paths:
+      - 'evidence/step-6-reflection.md'
+      - '.github/copilot-instructions-learner.md'
+
+permissions:
+  contents: read
+  actions: write
+  issues: write
+
+env:
+  STEP_NUMBER: 6
+  EXERCISE_TOOLKIT_REF: v0.7.0
+
+jobs:
+  find_exercise:
+    name: Find Exercise Issue
+    uses: skills/exercise-toolkit/.github/workflows/find-exercise-issue.yml@v0.7.0
+
+  check_step:
+    name: Validate Step 6
+    needs: [find_exercise]
+    runs-on: ubuntu-latest
+    env:
+      ISSUE_NUMBER: ${{ needs.find_exercise.outputs.issue-number }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate reflection evidence
+        run: |
+          if [ -f "evidence/step-6-reflection.md" ]; then
+            echo "✅ Step 6 reflection evidence found"
+          else
+            echo "❌ evidence/step-6-reflection.md missing"
+            exit 1
+          fi
+
+      - name: Validate Copilot instructions
+        run: |
+          if [ -f ".github/copilot-instructions-learner.md" ]; then
+            echo "✅ Copilot instructions file found"
+          else
+            echo "❌ .github/copilot-instructions-learner.md missing"
+            exit 1
+          fi
+
+      - name: Get response templates
+        uses: actions/checkout@v4
+        with:
+          repository: skills/exercise-toolkit
+          path: exercise-toolkit
+          ref: ${{ env.EXERCISE_TOOLKIT_REF }}
+
+      - name: Post step finished
+        uses: GrantBirki/comment@v2.1.1
+        with:
+          repository: ${{ github.repository }}
+          issue-number: ${{ env.ISSUE_NUMBER }}
+          file: exercise-toolkit/markdown-templates/step-feedback/step-finished-prepare-next-step.md
+          vars: |
+            next_step_number: complete
+
+      - name: Post congratulations
+        uses: GrantBirki/comment@v2.1.1
+        with:
+          repository: ${{ github.repository }}
+          issue-number: ${{ env.ISSUE_NUMBER }}
+          file: exercise-toolkit/markdown-templates/step-feedback/congratulations.md
+
+      - name: Post completion summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: process.env.ISSUE_NUMBER,
+              body: `## 🎉 Exercise Complete!\n\nYou've successfully completed all 6 steps:\n\n1. ✅ Built a production environment with 55K+ rows\n2. ✅ Experienced the incident failure chain\n3. ✅ Recovered the database from backup\n4. ✅ Studied Azure guardrails (locks, backups, remote state)\n5. ✅ Implemented GitHub guardrails (CODEOWNERS, Actions, environments)\n6. ✅ Configured Copilot CLI guardrails (custom instructions, plan mode)\n\n**Key takeaway:** AI coding agents are incredibly powerful, but infrastructure operations require defense-in-depth — multiple layers of protection so that no single failure can destroy production.\n\n> _"I over-relied on the AI agent to run Terraform commands. That removed the last safety layer."_`
+            });
+
+      - name: Close exercise issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: process.env.ISSUE_NUMBER,
+              state: 'closed',
+              state_reason: 'completed'
+            });
+
+      - name: Disable current workflow
+        run: gh workflow disable "Step ${{ env.STEP_NUMBER }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
