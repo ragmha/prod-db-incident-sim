@@ -57,32 +57,39 @@ Everything runs **locally in Docker** (PostgreSQL + Azurite) — **zero cloud co
 
 Everything runs locally in Docker — zero cloud cost, fully safe to destroy and rebuild.
 
-```mermaid
-graph LR
-    subgraph Docker["🐳 Docker Compose"]
-        direction TB
-        subgraph PG["🐘 PostgreSQL 16"]
-            DB[(course_platform<br/>55K+ rows<br/>7 tables)]
-        end
-        subgraph AZ["🔵 Azurite"]
-            Blob[Azure Blob Storage<br/>Terraform Remote State]
-        end
-    end
-
-    Learner["👩‍💻 Learner"] -->|make commands| Docker
-    Learner -->|psql| PG
-    TF[Terraform CLI] -->|"plan / apply / destroy<br/>(azurerm provider)"| PG
-    TF -->|backend state| AZ
-    Learner -->|terraform| TF
-    Learner -->|git push evidence/| GH[GitHub Actions]
-    GH -->|validate & post next step| Issue[Exercise Issue]
-
-    style Docker fill:#f5f5f5,stroke:#424242
-    style PG fill:#336791,color:#fff
-    style AZ fill:#0078d4,color:#fff
 ```
+                          👩‍💻 Learner's Terminal
+                ┌──────────────────────────────────────┐
+                │  make setup │ terraform │ git push    │
+                └──────┬──────────┬──────────┬─────────┘
+                       │          │          │
+              make seed│ terraform│   git push evidence/
+              make     │ plan     │          │
+              recover  │ apply    │          │
+                       │ destroy  │          │
+          ┌────────────▼──────────▼──┐       │
+          │      🐳 Docker Compose   │       │
+          │                          │       │
+          │  ┌────────────────────┐  │       │
+          │  │ 🐘 PostgreSQL 16   │  │       │
+          │  │                    │  │       ▼
+          │  │  course_platform   │  │  ┌─────────────┐
+          │  │  55K+ rows         │  │  │   GitHub     │
+          │  │  7 tables          │  │  │   Actions    │
+          │  └────────────────────┘  │  │             │
+          │                          │  │  validate → │
+          │  ┌────────────────────┐  │  │  post next  │
+          │  │ 🔵 Azurite         │  │  │  step       │
+          │  │                    │  │  └─────────────┘
+          │  │  Azure Blob Store  │  │
+          │  │  (TF Remote State) │  │
+          │  └────────────────────┘  │
+          └──────────────────────────┘
 
-> **Azure-first:** The simulation uses Docker to emulate Azure services locally. PostgreSQL represents Azure Database for PostgreSQL Flexible Server. Azurite emulates Azure Blob Storage. Terraform configs use the `azurerm` provider throughout.
+  PostgreSQL  = Azure Database for PostgreSQL Flexible Server
+  Azurite     = Azure Blob Storage (Terraform remote state)
+  Terraform   = azurerm provider throughout
+```
 
 ### 💥 The Incident — Failure Chain
 
@@ -132,37 +139,60 @@ sequenceDiagram
 
 The exercise teaches you to implement guardrails at **every layer** so no single failure can reach production:
 
-```mermaid
-graph TB
-    subgraph Layer3["🤖 Layer 3 · AI Agent Guardrails · Copilot CLI"]
-        C1["Permission Prompts<br/><i>Every command shown before execution</i>"]
-        C2["Plan Mode<br/><i>Reviewable plans before action</i>"]
-        C3["Custom Instructions<br/><i>Domain-specific safety rules</i>"]
-        C4["Directory Scoping<br/><i>Restrict file system access</i>"]
-    end
-
-    subgraph Layer2["🛡️ Layer 2 · Workflow Guardrails · GitHub"]
-        G1["CODEOWNERS<br/><i>Require team review for *.tf</i>"]
-        G2["Actions: terraform plan on PR<br/><i>Read-only review</i>"]
-        G3["Environment Approvals<br/><i>Gate terraform apply</i>"]
-        G4["Manual Destroy Workflow<br/><i>Issue link + confirmation</i>"]
-    end
-
-    subgraph Layer1["🔒 Layer 1 · Infrastructure Guardrails · Azure"]
-        A1["Resource Locks<br/><i>CanNotDelete on production DB</i>"]
-        A2["Immutable Backup Vault<br/><i>Survives resource deletion</i>"]
-        A3["Remote State<br/><i>Blob Storage + lease locking</i>"]
-        A4["Azure Policy<br/><i>Enforce standards org-wide</i>"]
-    end
-
-    Layer3 -->|"Blocks autonomous<br/>destructive commands"| Layer2
-    Layer2 -->|"Requires human review<br/>and approval"| Layer1
-    Layer1 -->|"Platform-level<br/>last line of defense"| DB[("🐘 Production<br/>Database<br/>1.9M rows")]
-
-    style Layer3 fill:#e1f5fe,stroke:#0277bd,color:#000
-    style Layer2 fill:#f3e5f5,stroke:#7b1fa2,color:#000
-    style Layer1 fill:#e8f5e9,stroke:#2e7d32,color:#000
-    style DB fill:#336791,color:#fff,stroke:#1a3a52
+```
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  🤖 LAYER 3 · AI Agent Guardrails (Copilot CLI)            ║
+  ║                                                              ║
+  ║  ┌─────────────────┐  ┌─────────────────┐                   ║
+  ║  │ Permission       │  │ Plan Mode       │                   ║
+  ║  │ Prompts          │  │ Review before   │                   ║
+  ║  │ Every cmd shown  │  │ any action      │                   ║
+  ║  └─────────────────┘  └─────────────────┘                   ║
+  ║  ┌─────────────────┐  ┌─────────────────┐                   ║
+  ║  │ Custom           │  │ Directory       │                   ║
+  ║  │ Instructions     │  │ Scoping         │                   ║
+  ║  │ Safety rules     │  │ Restrict access │                   ║
+  ║  └─────────────────┘  └─────────────────┘                   ║
+  ╠══════════════════════════════════════════════════════════════╣
+                    │ Blocks autonomous destructive commands
+                    ▼
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  🛡️ LAYER 2 · Workflow Guardrails (GitHub)                  ║
+  ║                                                              ║
+  ║  ┌─────────────────┐  ┌─────────────────┐                   ║
+  ║  │ CODEOWNERS       │  │ Actions:        │                   ║
+  ║  │ Require review   │  │ terraform plan  │                   ║
+  ║  │ for *.tf files   │  │ on every PR     │                   ║
+  ║  └─────────────────┘  └─────────────────┘                   ║
+  ║  ┌─────────────────┐  ┌─────────────────┐                   ║
+  ║  │ Environment      │  │ Manual Destroy  │                   ║
+  ║  │ Approvals        │  │ Workflow        │                   ║
+  ║  │ Gate tf apply    │  │ Issue + confirm │                   ║
+  ║  └─────────────────┘  └─────────────────┘                   ║
+  ╠══════════════════════════════════════════════════════════════╣
+                    │ Requires human review and approval
+                    ▼
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  🔒 LAYER 1 · Infrastructure Guardrails (Azure)             ║
+  ║                                                              ║
+  ║  ┌─────────────────┐  ┌─────────────────┐                   ║
+  ║  │ Resource Locks   │  │ Immutable       │                   ║
+  ║  │ CanNotDelete on  │  │ Backup Vault    │                   ║
+  ║  │ production DB    │  │ Survives delete │                   ║
+  ║  └─────────────────┘  └─────────────────┘                   ║
+  ║  ┌─────────────────┐  ┌─────────────────┐                   ║
+  ║  │ Remote State     │  │ Azure Policy    │                   ║
+  ║  │ Blob Storage +   │  │ Enforce         │                   ║
+  ║  │ lease locking    │  │ standards       │                   ║
+  ║  └─────────────────┘  └─────────────────┘                   ║
+  ╠══════════════════════════════════════════════════════════════╣
+                    │ Platform-level last line of defense
+                    ▼
+              ┌──────────────┐
+              │ 🐘 Production │
+              │   Database    │
+              │  1.9M rows    │
+              └──────────────┘
 ```
 
 ### 📂 Repository Structure
