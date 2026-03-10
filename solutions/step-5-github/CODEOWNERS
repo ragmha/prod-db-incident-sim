@@ -1,0 +1,13 @@
+# CODEOWNERS — Require infrastructure team review for Terraform changes
+
+# All Terraform files require infra team review
+*.tf @infra-team
+
+# Terraform variable files require infra team review
+*.tfvars @infra-team
+
+# Workflow files require security team review
+.github/workflows/ @security-team
+
+# Production infrastructure requires BOTH infra and security review
+infrastructure/production/ @infra-team @security-team

@@ -1,0 +1,58 @@
+name: "⚠️ Terraform Destroy (DANGER)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Linked incident issue number (required)'
+        required: true
+        type: string
+      confirm:
+        description: 'Type DESTROY to confirm'
+        required: true
+        type: string
+
+jobs:
+  validate:
+    name: Validate Destroy Request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation
+        if: github.event.inputs.confirm != 'DESTROY'
+        run: |
+          echo "❌ Confirmation failed. You must type 'DESTROY' exactly."
+          exit 1
+
+      - name: Verify linked issue
+        run: |
+          gh issue view ${{ github.event.inputs.issue_number }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log destruction request
+        run: |
+          echo "🚨 DESTROY requested by ${{ github.actor }}"
+          echo "📋 Linked issue: #${{ github.event.inputs.issue_number }}"
+          echo "⏰ Timestamp: $(date -u)"
+
+  destroy:
+    name: Terraform Destroy
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: destruction
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: infrastructure/production  # Azure production environment
+
+      - name: Terraform Destroy
+        # ⚠️ Destroys Azure resources — resource locks must be removed first
+        run: terraform destroy -auto-approve
+        working-directory: infrastructure/production  # Azure production environment

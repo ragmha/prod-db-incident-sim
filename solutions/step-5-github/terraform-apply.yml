@@ -1,0 +1,30 @@
+name: Terraform Apply
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/**'
+
+jobs:
+  apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: infrastructure/production  # Azure production environment
+
+      - name: Terraform Apply
+        # Applies changes to Azure resources (PostgreSQL, VNet, Container Apps, etc.)
+        run: terraform apply -auto-approve
+        working-directory: infrastructure/production  # Azure production environment
