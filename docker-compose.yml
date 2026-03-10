@@ -1,0 +1,66 @@
+# Production Database Incident Simulation — GitHub Skills Exercise
+# Simulates an Azure production environment locally using Docker.
+#
+# The original incident happened on AWS, but this exercise is framed for
+# Azure engineers — showing how the same disaster could occur in Azure
+# and what Azure-native guardrails prevent it.
+#
+# Services:
+#   - PostgreSQL: Simulates Azure Database for PostgreSQL Flexible Server
+#   - Azurite: Azure Storage emulator (Blob Storage for Terraform remote state)
+
+services:
+  # ── Simulates Azure Database for PostgreSQL Flexible Server ──────────────
+  # In a real Azure environment, this would be:
+  #   azurerm_postgresql_flexible_server (Flexible Server)
+  #   with deletion protection, geo-redundant backups, and resource locks.
+  #
+  # ⚠️ In this simulation, it has NO protection — just like the real incident.
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=course_platform
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=production_secret_2024
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d course_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - exercise-net
+
+  # ── Azure Storage Emulator (Terraform remote state backend) ──────────────
+  # Azurite emulates Azure Blob Storage locally.
+  # Used to demonstrate Terraform remote state with Azure backend —
+  # the guardrail that prevents the "new laptop" state loss problem.
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    ports:
+      - "10000:10000" # Blob service
+      - "10001:10001" # Queue service
+      - "10002:10002" # Table service
+    volumes:
+      - azurite-data:/data
+    command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "10000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - exercise-net
+
+volumes:
+  pgdata:
+  azurite-data:
+
+networks:
+  exercise-net:
+    driver: bridge
