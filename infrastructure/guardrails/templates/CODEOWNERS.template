@@ -1,0 +1,23 @@
+# CODEOWNERS — Require infrastructure team review for Terraform changes
+#
+# In the real incident, there was no code review gate. The AI agent
+# ran `terraform destroy` without any human reviewing what it was about to do.
+#
+# CODEOWNERS ensures that changes to infrastructure files MUST be reviewed
+# by designated team members before they can be merged.
+#
+# 📝 YOUR TASK: Complete the CODEOWNERS rules below.
+# Replace the TODO placeholders with appropriate patterns and teams.
+
+# TODO: Require the @infra-team to review ALL Terraform files
+# Hint: Use *.tf pattern
+# _________ @infra-team
+
+# TODO: Require the @infra-team to review Terraform variable files
+# _________ @infra-team
+
+# TODO: Require @security-team to review any workflow files
+# _________ @security-team
+
+# TODO: Require @infra-team AND @security-team for the production directory
+# _________ @infra-team @security-team

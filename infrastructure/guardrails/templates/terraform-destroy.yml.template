@@ -1,0 +1,58 @@
+# Terraform Destroy Workflow — MAXIMUM FRICTION
+#
+# This is the most dangerous Terraform operation. It should be:
+# 1. MANUAL ONLY — never triggered automatically
+# 2. Require a linked incident/issue explaining WHY
+# 3. Require explicit confirmation
+#
+# In the real incident, `terraform destroy` was run by an AI agent
+# with NO human approval, NO linked issue, and NO confirmation.
+#
+# 📝 YOUR TASK: Complete the TODO sections below.
+
+name: "⚠️ Terraform Destroy (DANGER)"
+
+on:
+  # TODO: This should ONLY be triggerable manually
+  # Hint: Use workflow_dispatch with required inputs
+  workflow_dispatch:
+    inputs:
+      # TODO: Add a required input for the linked issue number
+      # This forces the operator to document WHY they're destroying
+
+      # TODO: Add a required confirmation input
+      # The operator must type "DESTROY" to confirm
+      confirm:
+        description: 'Type DESTROY to confirm'
+        required: true
+        type: string
+
+jobs:
+  validate:
+    name: Validate Destroy Request
+    runs-on: ubuntu-latest
+    steps:
+      # TODO: Add a step that FAILS if confirm != "DESTROY"
+      # This prevents accidental triggers
+
+      # TODO: Add a step that verifies the linked issue exists
+      # Use gh issue view to check
+
+      - name: Log destruction request
+        run: |
+          echo "🚨 DESTROY requested by ${{ github.actor }}"
+          echo "📋 Linked issue: #${{ github.event.inputs.issue_number }}"
+          echo "⏰ Timestamp: $(date -u)"
+
+  destroy:
+    name: Terraform Destroy
+    needs: validate
+    runs-on: ubuntu-latest
+    # TODO: Add environment with required reviewers (different from apply!)
+    # Hint: Use a "destruction" environment requiring 2+ approvers
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # TODO: Setup and run terraform destroy

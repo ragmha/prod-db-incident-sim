@@ -1,0 +1,45 @@
+# Terraform Plan Workflow — Read-only safety check on every PR
+#
+# This runs `terraform plan` whenever someone opens a PR that touches
+# infrastructure files. It posts the plan as a PR comment so reviewers
+# can see EXACTLY what will change before approving.
+#
+# In the real incident, there was no plan review step.
+# The AI agent went straight from plan to apply to destroy.
+#
+# 📝 YOUR TASK: Complete the TODO sections below.
+
+name: Terraform Plan
+
+on:
+  pull_request:
+    paths:
+      - 'infrastructure/**'
+      - '*.tf'
+      - '*.tfvars'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # TODO: Add a step to set up Terraform
+      # Hint: Use hashicorp/setup-terraform@v3
+
+      # TODO: Add a step to run terraform init
+
+      # TODO: Add a step to run terraform plan and save output
+      # Hint: Use -out=tfplan and capture the output
+
+      # TODO: Add a step to post the plan as a PR comment
+      # Hint: Use actions/github-script@v7 to create a comment
+      # The comment should include the full plan output so reviewers
+      # can see what resources will be created, modified, or DESTROYED

@@ -1,0 +1,38 @@
+# Terraform Apply Workflow — Merge-triggered with environment approval
+#
+# This runs `terraform apply` ONLY after:
+# 1. A PR has been reviewed and merged to main
+# 2. The deployment has been approved in the GitHub Environment
+#
+# 📝 YOUR TASK: Complete the TODO sections below.
+
+name: Terraform Apply
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infrastructure/**'
+
+jobs:
+  apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    # TODO: Add environment with required reviewers
+    # Hint: environment: production
+    # This creates an approval gate — someone must click "Approve" before apply runs
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # TODO: Set up Terraform
+
+      # TODO: Run terraform init
+
+      # TODO: Run terraform apply with -auto-approve
+      # NOTE: -auto-approve is SAFE here because:
+      # 1. Code was already reviewed in the PR
+      # 2. Environment approval was required
+      # 3. Only runs on merge to main (not on random branches)

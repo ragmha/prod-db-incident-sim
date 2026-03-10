@@ -1,0 +1,71 @@
+# Copilot CLI Custom Instructions — Infrastructure Safety
+
+<!-- 
+  🤖 COPILOT CLI GUARDRAILS
+  
+  This file tells GitHub Copilot CLI how to behave when working with
+  infrastructure code in this repository.
+  
+  In the real incident, an AI coding agent (Claude Code) was given
+  unrestricted access to run Terraform commands. It ran `terraform destroy`
+  and wiped production infrastructure including a database with 1.9M rows.
+  
+  GitHub Copilot CLI is designed differently:
+  - Every command requires explicit user approval
+  - Plan mode creates a reviewable plan before executing
+  - Custom instructions (this file) add domain-specific safety rules
+  
+  📝 YOUR TASK: Complete the safety rules below.
+  Replace TODO placeholders with specific, actionable instructions.
+-->
+
+## Infrastructure Safety Rules
+
+<!-- TODO: Add a rule about Terraform execution
+   The rule should instruct Copilot CLI to NEVER execute terraform apply,
+   terraform destroy, or terraform import directly. Instead, it should
+   only GENERATE the commands for the human to review and run manually.
+   
+   Hint: "For Terraform operations, ..." -->
+
+<!-- TODO: Add a rule about plan mode
+   The rule should instruct Copilot CLI to ALWAYS use plan mode when
+   working with infrastructure changes. This ensures a reviewable plan
+   is created before any action.
+   
+   Hint: "Always use plan mode when ..." -->
+
+<!-- TODO: Add a rule about destructive operations
+   The rule should specifically call out terraform destroy, terraform taint,
+   and terraform state rm as high-risk operations that require extra caution.
+   Copilot CLI should explain the blast radius before suggesting these.
+   
+   Hint: "Before suggesting any destructive Terraform operation ..." -->
+
+<!-- TODO: Add a rule about state file handling
+   The rule should instruct Copilot CLI to NEVER modify, move, or delete
+   Terraform state files. If state operations are needed, it should
+   explain the risks and let the human handle it.
+   
+   Hint: "Never modify Terraform state files ..." -->
+
+<!-- TODO: Add a rule about verifying the environment
+   The rule should instruct Copilot CLI to always verify which environment
+   (dev/staging/production) is being targeted before suggesting any changes.
+   It should check the Terraform workspace, backend config, and variable files.
+   
+   Hint: "Before any infrastructure change, verify ..." -->
+
+## Comparison: What Went Wrong vs What Copilot CLI Does
+
+<!--
+  Fill in this comparison table based on what you learned:
+  
+  | What Happened in the Incident | How Copilot CLI Handles This |
+  |-------------------------------|------------------------------|
+  | AI agent ran `terraform destroy` autonomously | TODO: How does Copilot CLI handle this? |
+  | AI agent replaced the state file silently | TODO: How does Copilot CLI handle this? |
+  | No human review of the Terraform plan | TODO: How does Copilot CLI handle this? |
+  | Auto-approve was delegated to the AI | TODO: How does Copilot CLI handle this? |
+  | AI agent had unrestricted file system access | TODO: How does Copilot CLI handle this? |
+-->
