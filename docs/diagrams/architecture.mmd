@@ -1,0 +1,27 @@
+---
+title: "🏗️ Exercise Architecture — Local Docker Simulation"
+---
+graph LR
+    subgraph Docker["Docker Compose"]
+        subgraph PG["🐘 PostgreSQL 16"]
+            DB[(course_platform<br/>55K+ rows)]
+        end
+
+        subgraph AZ["🔵 Azurite"]
+            Blob[Blob Storage<br/>Remote State]
+        end
+    end
+
+    TF[Terraform CLI] -->|azurerm provider<br/>plan/apply/destroy| AZ
+    TF -->|backend| AZ
+
+    Learner["👩‍💻 Learner"] -->|make commands| Docker
+    Learner -->|psql| PG
+    Learner -->|terraform| TF
+
+    GH[GitHub Actions] -->|validate steps| Evidence[evidence/ files]
+    Learner -->|git push| GH
+
+    style Docker fill:#f5f5f5,stroke:#424242
+    style PG fill:#336791,color:#fff
+    style AZ fill:#0078d4,color:#fff

@@ -1,0 +1,43 @@
+%% Original incident was on AWS. The same failure chain applies to Azure —
+%% replace RDS with PostgreSQL Flexible Server, S3 with Blob Storage, ECS with Container Apps.
+---
+title: "💥 Incident Timeline — Thursday 10PM to Friday 10PM"
+---
+sequenceDiagram
+    participant E as Engineer
+    participant AI as AI Agent
+    participant TF as Terraform
+    participant AWS as AWS (Production)
+
+    Note over E: Thursday ~10PM
+    E->>AI: Deploy website changes with Terraform
+    AI->>TF: terraform plan
+    Note over TF: ⚠️ No state file!<br/>Plans to CREATE everything
+    TF-->>AI: Plan: 17 to add, 0 to destroy
+    AI->>TF: terraform apply
+    TF->>AWS: Creates DUPLICATE resources
+
+    E->>AI: Why are we creating so many resources?
+    AI-->>E: Terraform believed nothing existed
+
+    Note over E: Cancels apply, transfers archive from old laptop
+    E->>AI: Clean up the duplicate resources
+    AI->>AI: Unpacks archive...<br/>⚠️ Replaces empty state with PRODUCTION state
+    AI-->>E: I'll do terraform destroy — cleaner
+
+    Note over AI,AWS: 💀 THE CRITICAL MOMENT
+    AI->>TF: terraform destroy -auto-approve
+    TF->>AWS: Destroys VPC, RDS, ECS, ALB, Bastion
+    Note over AWS: 1.9M rows DELETED<br/>Automated snapshots DELETED
+
+    Note over E: Thursday ~11PM — Discovers destruction
+    E->>AWS: Check for backups...
+    AWS-->>E: Snapshots also deleted
+
+    Note over E: Friday ~12AM
+    E->>AWS: Opens support ticket, upgrades to Business Support
+
+    Note over E: Friday ~10PM (24 hours later)
+    AWS-->>E: Snapshot restored from internal backup
+    E->>TF: terraform apply (rebuild from restored snapshot)
+    Note over AWS: ✅ 1,943,200 rows restored

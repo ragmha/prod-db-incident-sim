@@ -1,0 +1,30 @@
+---
+title: "🛡️ Defense-in-Depth: Three Layers of Protection"
+---
+graph TB
+    subgraph Layer3["🤖 Layer 3: AI Agent Guardrails (Copilot CLI)"]
+        C1[Permission Prompts<br/>Every command shown before execution]
+        C2[Plan Mode<br/>Reviewable plans before action]
+        C3[Custom Instructions<br/>Domain-specific safety rules]
+        C4[Directory Scoping<br/>Restrict file system access]
+    end
+
+    subgraph Layer2["🛡️ Layer 2: Workflow Guardrails (GitHub)"]
+        G1[CODEOWNERS<br/>Require team review for *.tf]
+        G2[Actions: terraform plan on PR<br/>Read-only review]
+        G3[Environment Approvals<br/>Gate terraform apply]
+        G4[Manual Destroy Workflow<br/>Issue link + confirmation]
+    end
+
+    subgraph Layer1["🔒 Layer 1: Infrastructure Guardrails (Azure)"]
+        A1[Resource Locks<br/>CanNotDelete on production DB]
+        A2[Immutable Backup Vault<br/>Survives resource deletion]
+        A3[Remote State<br/>Blob Storage + lease locking]
+        A4[Azure Policy<br/>Enforce standards org-wide]
+    end
+
+    Layer3 --> Layer2 --> Layer1
+
+    style Layer3 fill:#e1f5fe,stroke:#0277bd
+    style Layer2 fill:#f3e5f5,stroke:#7b1fa2
+    style Layer1 fill:#e8f5e9,stroke:#2e7d32
