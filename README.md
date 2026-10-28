@@ -1,248 +1,153 @@
-<!--
-  🛡️ Preventing Production Database Disasters
-  A GitHub Skills Exercise
--->
+# Turn a production incident into guardrails
 
-<header>
+_Replay a real AI-agent incident with real Terraform, then build the guardrails that stop it._
 
-# 🛡️ Preventing Production Database Disasters
+On 26 February 2026, an AI coding agent ran `terraform destroy` with production's state
+and deleted a course platform's infrastructure, including a database holding two and a
+half years of student work. Its automated snapshots went with it. Recovery took about
+24 hours.
 
-_An interactive GitHub Skills exercise that teaches you to protect production infrastructure from accidental destruction by AI-assisted tools._
-
-</header>
+In this exercise you replay that failure chain against a disposable production in your
+Codespace, recover it, and then work through an agentic software development loop:
+**agents investigate and propose, pipelines enforce, and humans decide.** By the end,
+the incident is a regression test that CI runs on every change.
 
 ## Welcome
 
-Based on a [real incident](https://alexeyondata.substack.com/p/how-i-dropped-our-production-database) where an AI coding agent ran `terraform destroy` and wiped a production database containing **1.9 million rows** of student data, this exercise lets you safely experience the failure, practice recovery, and implement guardrails.
+- **Who is this for**: platform engineers, DevOps engineers, SREs, and developers who use AI agents with infrastructure as code.
+- **What you'll learn**: Terraform state and lifecycle protections, restore drills, blameless postmortems, Copilot custom agents and hooks, and approval-gated releases.
+- **What you'll build**: A guardrail for every layer the incident crossed, each one proven by replaying the incident.
+- **Prerequisites**: A GitHub account with Copilot, Codespaces, and Actions available. No cloud account is needed.
+- **How long**: About 2.5 to 3 hours.
 
-- **Who is this for**: DevOps engineers, platform engineers, SREs, and developers working with Infrastructure as Code.
-- **What you'll learn**: Terraform state management, Azure resource locks, GitHub Actions IaC pipelines, CODEOWNERS, and Copilot CLI's human-in-the-loop security model.
-- **What you'll build**: A defense-in-depth guardrail strategy combining Azure, GitHub, and AI agent protections.
-- **Prerequisites**: Docker Desktop, Terraform CLI (v1.0+), Git. Optional: GitHub Copilot CLI for Step 6.
-- **How long**: This exercise takes 1.5–2 hours to complete.
+| Step | Focus | Proven by |
+| --- | --- | --- |
+| **1. Replay** | Run the failure chain with real Terraform commands | The replay deletes production |
+| **2. Recover** | Restore from an independent backup and drill the restore | CI's restore drill |
+| **3. Postmortem** | Draft a blameless postmortem with a read-only agent, then approve it | Your reviewed report |
+| **4. Guardrails** | Have an agent add remote state, deletion protection, kept backups, and owners | CI's replay leaves production intact |
+| **5. Agent hooks** | Deny destructive tool calls before they run | CI replays the agent's tool calls |
+| **6. Release** | Make the replay a regression gate and release through human approval | An approved Release run |
 
-In this exercise, you will:
+## How to start this exercise
 
-1. 🏗️ Build a simulated "production" database with 55,000+ rows
-2. 💥 Simulate the exact incident that destroyed a real production database
-3. 🔧 Practice database recovery from backup
-4. 🔒 Study Azure guardrails (resource locks, immutable backups, remote state)
-5. 🛡️ Implement GitHub guardrails (CODEOWNERS, Actions workflows, environment approvals)
-6. 🤖 Configure Copilot CLI guardrails (custom instructions, plan mode)
+Copy the exercise to your account. Leave Issues and Actions enabled, and give the coach a
+minute to open your first lesson.
 
-### How to start this exercise
+[![Copy Exercise](https://img.shields.io/badge/Copy_Exercise-%E2%86%92-1f883d?style=for-the-badge&logo=github&labelColor=197935)](https://github.com/new?template_owner=ragmha&template_name=prod-db-incident-sim&owner=%40me&name=incident-guardrails&description=Turn+a+production+incident+into+guardrails&visibility=public)
 
-Simply copy the exercise to your account, then give your favorite Octocat (Mona) **about 20 seconds** to prepare the first lesson, then **refresh the page**.
+Create a **new repository from the template**, not a fork. Keep it public so you can use
+environment approvals in Step 6. In your new repository, open
+**Issues → Exercise: Turn a production incident into guardrails**. The coach posts each
+lesson there and gives feedback after you merge your work.
 
-[![Copy Exercise](https://img.shields.io/badge/Copy%20Exercise-%E2%86%92-1f883d?style=for-the-badge&logo=github&labelColor=197935)](https://github.com/new?template_owner=ragmha&template_name=prod-db-incident-sim&owner=%40me&name=skills-prod-db-incident-sim&description=Exercise:+Preventing+Production+Database+Disasters&visibility=public)
+Then open a Codespace on **your copy** with **Code → Codespaces**. It includes Docker,
+Terraform, Node.js, the GitHub CLI, and Copilot CLI. Codespaces usage counts toward your
+account's allowance.
 
-> **Having trouble?** Check the [Actions tab](../../actions) — if a job failed, please [open an issue](../../issues/new).
+<details>
+<summary>Prefer your own machine?</summary>
 
----
+Open your copy in VS Code with the Dev Containers extension and choose
+**Dev Containers: Reopen in Container**. Or install Docker, Terraform 1.17, Node.js 22 or
+later, and GNU Make yourself, then run `make doctor`.
 
-## How It Works
+</details>
 
-This exercise uses the [GitHub Skills exercise-toolkit](https://github.com/skills/exercise-toolkit) pattern:
+<details>
+<summary>Having trouble?</summary>
 
-1. **Copy the template** → GitHub Actions creates an exercise Issue with Step 1
-2. **Complete each step** → Push evidence files to prove completion
-3. **Auto-progression** → Workflows validate your work and post the next step
-4. **All 6 steps done** → 🎉 Congratulations posted, issue closed
+- Check [Actions](../../actions) if the lesson issue doesn't appear.
+- Comment `/check` on your exercise issue to ask the coach to look again.
+- `make reset` rebuilds a clean lab at any time.
 
-Everything runs **locally in Docker** (PostgreSQL + Azurite) — **zero cloud cost**, no Azure subscription needed.
+</details>
 
-## Architecture
-
-### 🏗️ Exercise Environment
-
-Everything runs locally in Docker — zero cloud cost, fully safe to destroy and rebuild.
-
-```
-                    Learner's Terminal
-         ┌────────────────────────────────────┐
-         │ make setup | terraform | git push  │
-         └──────┬────────────┬──────────┬─────┘
-                │            │          │
-       make seed│  terraform │   git push evidence/
-       make     │  plan      │          │
-       recover  │  apply     │          │
-                │  destroy   │          │
-     ┌──────────▼────────────▼───┐      │
-     │     Docker Compose        │      │
-     │                           │      │
-     │  ┌─────────────────────┐  │      │
-     │  │ PostgreSQL 16       │  │      │
-     │  │ course_platform     │  │      ▼
-     │  │ 55K+ rows, 7 tables │  │  ┌──────────┐
-     │  └─────────────────────┘  │  │  GitHub  │
-     │                           │  │  Actions │
-     │  ┌─────────────────────┐  │  │          │
-     │  │ Azurite             │  │  │ validate │
-     │  │ Azure Blob Storage  │  │  │ + post   │
-     │  │ (TF Remote State)   │  │  │ next step│
-     │  └─────────────────────┘  │  └──────────┘
-     │                           │
-     └───────────────────────────┘
-
- PostgreSQL = Azure Database for PostgreSQL Flexible Server
- Azurite    = Azure Blob Storage (Terraform remote state)
- Terraform  = azurerm provider throughout
-```
-
-### 💥 The Incident — Failure Chain
-
-This is the exact sequence from a real AWS incident. The same failure chain applies identically to Azure — replace RDS with PostgreSQL Flexible Server, S3 with Blob Storage, ECS with Container Apps.
+## The loop you'll build
 
 ```mermaid
-sequenceDiagram
-    participant E as 👷 Engineer
-    participant AI as 🤖 AI Agent
-    participant TF as Terraform
-    participant AWS as ☁️ AWS Production
+flowchart LR
+    accTitle: The agentic SDLC loop in this exercise
+    accDescr: An incident is replayed, recovered, analyzed, and turned into guardrails and a gated release, and the replay becomes a regression test.
 
-    Note over E: Thursday ~10PM — New laptop, no state file
-    E->>AI: Deploy website changes with Terraform
-    AI->>TF: terraform plan
-    Note over TF: ⚠️ No state file!<br/>Plans to CREATE everything
-    TF-->>AI: Plan: 17 to add, 0 to destroy
-    AI->>TF: terraform apply
-    TF->>AWS: Creates DUPLICATE resources
-
-    E->>AI: Why are we creating so many resources?
-    AI-->>E: Terraform believed nothing existed
-
-    Note over E: Transfers Terraform archive from old laptop
-    E->>AI: Clean up the duplicate resources
-    AI->>AI: Unpacks archive...<br/>⚠️ Replaces empty state<br/>with PRODUCTION state
-    AI-->>E: I'll do terraform destroy — cleaner
-
-    rect rgb(255, 230, 230)
-        Note over AI,AWS: 💀 THE CRITICAL MOMENT
-        AI->>TF: terraform destroy -auto-approve
-        TF->>AWS: Destroys VPC, RDS, ECS, ALB, Bastion
-        Note over AWS: 1.9M rows DELETED<br/>Automated snapshots ALSO DELETED
-    end
-
-    Note over E: Thursday ~11PM — Discovers destruction
-    E->>AWS: Check for backups...
-    AWS-->>E: ❌ Snapshots deleted with the database
-
-    Note over E: Friday ~12AM — Upgrades to Business Support
-    Note over E: Friday ~10PM (24 hours later)
-    AWS-->>E: ✅ Snapshot restored from internal backup
-    Note over AWS: 1,943,200 rows restored
+    operate["Operate<br/>replay the incident"] --> recover["Recover<br/>restore and drill"]
+    recover --> plan["Plan<br/>agent-drafted,<br/>human-approved postmortem"]
+    plan --> build["Build<br/>agent-written guardrails"]
+    build --> govern["Govern<br/>hooks on agent tool calls"]
+    govern --> release["Release<br/>regression gate and<br/>approved deployment"]
+    release -->|the replay runs on every change| operate
 ```
 
-### 🛡️ Defense-in-Depth — Three Layers of Protection
+## How the lab works
 
-The exercise teaches you to implement guardrails at **every layer** so no single failure can reach production:
+Terraform, its state, and its commands are real. The cloud is modelled by
+`scripts/lab/control-plane.sh`, which creates and deletes a PostgreSQL database the way a
+cloud API would: it carries out any valid request without asking whether your state was
+the right one. A second container stores Terraform state once you configure a backend.
 
-```
- ╔════════════════════════════════════════════════════╗
- ║  LAYER 3: AI Agent Guardrails (Copilot CLI)       ║
- ║                                                    ║
- ║  ┌──────────────────┐  ┌──────────────────┐       ║
- ║  │ Permission       │  │ Plan Mode        │       ║
- ║  │ Prompts          │  │ Review before    │       ║
- ║  │ Every cmd shown  │  │ any action       │       ║
- ║  └──────────────────┘  └──────────────────┘       ║
- ║  ┌──────────────────┐  ┌──────────────────┐       ║
- ║  │ Custom           │  │ Directory        │       ║
- ║  │ Instructions     │  │ Scoping          │       ║
- ║  │ Safety rules     │  │ Restrict access  │       ║
- ║  └──────────────────┘  └──────────────────┘       ║
- ╠════════════════════════════════════════════════════╣
-                  │
-                  │ Blocks autonomous destructive commands
-                  ▼
- ╔════════════════════════════════════════════════════╗
- ║  LAYER 2: Workflow Guardrails (GitHub)             ║
- ║                                                    ║
- ║  ┌──────────────────┐  ┌──────────────────┐       ║
- ║  │ CODEOWNERS       │  │ Actions:         │       ║
- ║  │ Require review   │  │ terraform plan   │       ║
- ║  │ for *.tf files   │  │ on every PR      │       ║
- ║  └──────────────────┘  └──────────────────┘       ║
- ║  ┌──────────────────┐  ┌──────────────────┐       ║
- ║  │ Environment      │  │ Manual Destroy   │       ║
- ║  │ Approvals        │  │ Workflow         │       ║
- ║  │ Gate tf apply    │  │ Issue + confirm  │       ║
- ║  └──────────────────┘  └──────────────────┘       ║
- ╠════════════════════════════════════════════════════╣
-                  │
-                  │ Requires human review and approval
-                  ▼
- ╔════════════════════════════════════════════════════╗
- ║  LAYER 1: Infrastructure Guardrails (Azure)       ║
- ║                                                    ║
- ║  ┌──────────────────┐  ┌──────────────────┐       ║
- ║  │ Resource Locks   │  │ Immutable        │       ║
- ║  │ CanNotDelete on  │  │ Backup Vault     │       ║
- ║  │ production DB    │  │ Survives delete  │       ║
- ║  └──────────────────┘  └──────────────────┘       ║
- ║  ┌──────────────────┐  ┌──────────────────┐       ║
- ║  │ Remote State     │  │ Azure Policy     │       ║
- ║  │ Blob Storage +   │  │ Enforce          │       ║
- ║  │ lease locking    │  │ standards        │       ║
- ║  └──────────────────┘  └──────────────────┘       ║
- ╠════════════════════════════════════════════════════╣
-                  │
-                  │ Platform-level last line of defense
-                  ▼
-            ┌────────────────┐
-            │   Production   │
-            │   Database     │
-            │   1.9M rows    │
-            └────────────────┘
+| Real incident (AWS) | In the lab |
+| --- | --- |
+| RDS PostgreSQL holding the course platform | `course_platform` in the `postgres` container |
+| Automated snapshots, deleted with the instance | Automated backups on the database server, deleted with the database |
+| Terraform state on one laptop | Local state in `infrastructure/lab` |
+| An agent running Terraform from a terminal | `make replay` running the same commands |
+| The snapshot that support found later | An independent export in `.lab/offsite` |
+
+CI rebuilds the lab on every commit, restores the backup into a scratch database, replays
+the incident, and replays the agent's tool calls through your hooks. The coach reads those
+results from the run's artifact, not from your reports.
+
+## Useful commands
+
+Run these in the Codespace terminal:
+
+```bash
+make doctor        # check the toolchain without starting anything
+make setup         # build production: database, course data, and backups
+make verify        # show production's row counts
+make replay        # replay the incident (destructive)
+make recover       # restore from the newest surviving backup
+make drill         # restore the independent backup into a scratch database
+make plan-check    # save a plan for review; fail if it deletes or replaces anything
+make apply         # apply exactly the reviewed plan
+make agent-replay  # replay the incident's tool calls through .github/hooks
+make teardown      # delete the lab completely
+npm run checkpoint -- 4   # check a lesson's requirements locally (1 to 6)
 ```
 
-### 📂 Repository Structure
+## Project map
 
-```
-prod-db-incident-sim/
-├── .github/
-│   ├── workflows/          # 7 exercise progression workflows (0-start → step 6)
-│   ├── steps/              # 6 step content files (posted to exercise issue)
-│   └── copilot-instructions.md  # Repo-level Copilot CLI safety rules
-├── infrastructure/
-│   ├── production/         # Azure Terraform configs (azurerm provider)
-│   ├── incident/           # Incident simulation (no state file + simulate.sh)
-│   └── guardrails/
-│       ├── azure/          # Resource locks, backup vault, remote state (TF)
-│       └── templates/      # Learner-completable templates (CODEOWNERS, workflows)
-├── database/
-│   ├── seed-data.sql       # 55K+ rows of course management data
-│   └── backup/             # Pre-created backup for recovery exercise
-├── solutions/              # Reference implementations (peek if stuck)
-├── docs/                   # Companion guide, AWS↔Azure mapping, instructor notes
-├── docker-compose.yml      # PostgreSQL + Azurite (Azure Storage emulator)
-└── Makefile                # make setup | seed | simulate-incident | recover | reset
-```
+| Path | Purpose |
+| --- | --- |
+| `infrastructure/lab` | The lab's production configuration, which you harden in Step 4 |
+| `infrastructure/azure` | Reference Terraform for the Azure equivalents. Never applied |
+| `scripts/lab` | Setup, replay, recovery, drill, plan guard, and release scripts |
+| `tests/incident` | The incident's agent tool calls, replayed through your hooks |
+| `.github/steps` | The lessons |
+| `.github/agents`, `.github/skills` | A read-only incident analyst and a postmortem skill |
+| `.github/workflows` | CI, the exercise coach, Release, and the agentic guardrail review |
+| `evidence` | Your reports |
+| `docs` | [Companion guide](docs/COMPANION-GUIDE.md), [AWS and Azure mapping](docs/AWS-AZURE-MAPPING.md), [instructor notes](docs/INSTRUCTOR-NOTES.md), [agentic workflows](docs/agentic-workflows.md), and [maintainer notes](docs/maintainers.md) |
 
-## Quick Reference
+## Safety and scope
 
-| Command | Description |
-|---|---|
-| `make setup` | Start Docker services (PostgreSQL + Azurite) |
-| `make seed` | Populate database with 55K+ rows |
-| `make verify` | Check database integrity |
-| `make simulate-incident` | 💥 Run the incident simulation (Step 2) |
-| `make recover` | 🔧 Restore from backup (Step 3) |
-| `make reset` | Reset everything to initial state |
-| `make help` | Show all available commands |
+Everything runs in local containers; nothing in this exercise creates cloud resources.
+The database contains synthetic course data. The replay deletes the lab's production on
+purpose, and `make recover` or `make reset` brings it back.
 
-## Documentation
+Codespaces, Copilot, and Actions usage may incur charges. Stop your Codespace when you
+finish, and run `make teardown` to delete the lab.
 
-| Document | Description |
-|---|---|
-| [Companion Guide](docs/COMPANION-GUIDE.md) | Full educational narrative and key takeaways |
-| [AWS → Azure Mapping](docs/AWS-AZURE-MAPPING.md) | Detailed service comparison |
-| [Instructor Notes](docs/INSTRUCTOR-NOTES.md) | Workshop facilitation guide |
+## Based on
 
-## Based On
+This exercise is built on Alexey Grigorev's candid account,
+[How I dropped our production database](https://alexeyondata.substack.com/p/how-i-dropped-our-production-database).
+Thank you for sharing it so others can learn from it.
 
-This exercise is inspired by Alexey Grigorev's transparent and invaluable post: **[How I Dropped Our Production Database and What I Did Next](https://alexeyondata.substack.com/p/how-i-dropped-our-production-database)**. We deeply respect the author's willingness to share this experience for the benefit of the engineering community.
+## Project status and license
 
----
+This is an independent personal project maintained by `ragmha`. It isn't affiliated with,
+endorsed by, or sponsored by any employer or organization. It is provided for learning, as
+is, without warranty.
 
-© 2025 • [Code of Conduct](https://www.contributor-covenant.org/version/2/1/code_of_conduct/code_of_conduct.md) • [MIT License](LICENSE)
+Licensed under the [MIT License](LICENSE).

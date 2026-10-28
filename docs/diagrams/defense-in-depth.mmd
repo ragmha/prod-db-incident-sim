@@ -1,30 +1,22 @@
 ---
-title: "🛡️ Defense-in-Depth: Three Layers of Protection"
+title: "Defense in depth: a guardrail for every layer the incident crossed"
 ---
 graph TB
-    subgraph Layer3["🤖 Layer 3: AI Agent Guardrails (Copilot CLI)"]
-        C1[Permission Prompts<br/>Every command shown before execution]
-        C2[Plan Mode<br/>Reviewable plans before action]
-        C3[Custom Instructions<br/>Domain-specific safety rules]
-        C4[Directory Scoping<br/>Restrict file system access]
+    subgraph Release["Release (Step 6)"]
+        R1[CI replays the incident<br/>as a regression gate]
+        R2[Production changes need<br/>an approved environment]
     end
-
-    subgraph Layer2["🛡️ Layer 2: Workflow Guardrails (GitHub)"]
-        G1[CODEOWNERS<br/>Require team review for *.tf]
-        G2[Actions: terraform plan on PR<br/>Read-only review]
-        G3[Environment Approvals<br/>Gate terraform apply]
-        G4[Manual Destroy Workflow<br/>Issue link + confirmation]
+    subgraph Agent["Agent (Step 5)"]
+        A1[preToolUse hooks deny<br/>destructive tool calls]
+        A2[Scoped agents and<br/>path-specific instructions]
     end
-
-    subgraph Layer1["🔒 Layer 1: Infrastructure Guardrails (Azure)"]
-        A1[Resource Locks<br/>CanNotDelete on production DB]
-        A2[Immutable Backup Vault<br/>Survives resource deletion]
-        A3[Remote State<br/>Blob Storage + lease locking]
-        A4[Azure Policy<br/>Enforce standards org-wide]
+    subgraph Infra["Infrastructure (Step 4)"]
+        I1[Shared remote state]
+        I2[prevent_destroy]
+        I3[Backups that survive deletion]
+        I4[CODEOWNERS]
     end
-
-    Layer3 --> Layer2 --> Layer1
-
-    style Layer3 fill:#e1f5fe,stroke:#0277bd
-    style Layer2 fill:#f3e5f5,stroke:#7b1fa2
-    style Layer1 fill:#e8f5e9,stroke:#2e7d32
+    subgraph Recovery["Recovery (Step 2)"]
+        B1[Independent backup<br/>with restore drills]
+    end
+    Release --> Agent --> Infra --> Recovery

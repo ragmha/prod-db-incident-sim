@@ -1,43 +1,29 @@
-%% Original incident was on AWS. The same failure chain applies to Azure —
-%% replace RDS with PostgreSQL Flexible Server, S3 with Blob Storage, ECS with Container Apps.
+%% The incident happened on AWS. docs/AWS-AZURE-MAPPING.md maps it to Azure.
 ---
-title: "💥 Incident Timeline — Thursday 10PM to Friday 10PM"
+title: "Incident timeline: Thursday 26 February 2026, ~10 PM, to Friday ~10 PM"
 ---
 sequenceDiagram
     participant E as Engineer
-    participant AI as AI Agent
+    participant AI as AI agent
     participant TF as Terraform
-    participant AWS as AWS (Production)
+    participant AWS as AWS (production)
 
-    Note over E: Thursday ~10PM
-    E->>AI: Deploy website changes with Terraform
+    Note over E: Thursday ~10 PM, new computer, state on the old one
+    E->>AI: Deploy the website changes with Terraform
     AI->>TF: terraform plan
-    Note over TF: ⚠️ No state file!<br/>Plans to CREATE everything
-    TF-->>AI: Plan: 17 to add, 0 to destroy
+    Note over TF: No state: plans to create everything again
     AI->>TF: terraform apply
-    TF->>AWS: Creates DUPLICATE resources
-
+    TF->>AWS: Starts creating duplicate resources
     E->>AI: Why are we creating so many resources?
     AI-->>E: Terraform believed nothing existed
-
-    Note over E: Cancels apply, transfers archive from old laptop
-    E->>AI: Clean up the duplicate resources
-    AI->>AI: Unpacks archive...<br/>⚠️ Replaces empty state with PRODUCTION state
-    AI-->>E: I'll do terraform destroy — cleaner
-
-    Note over AI,AWS: 💀 THE CRITICAL MOMENT
+    Note over E: Cancels the apply, copies the Terraform archive from the old computer
+    E->>AI: Find and delete the duplicates
+    AI->>AI: Unpacks the archive, replacing the state with production's
+    AI-->>E: A terraform destroy would be cleaner
     AI->>TF: terraform destroy -auto-approve
-    TF->>AWS: Destroys VPC, RDS, ECS, ALB, Bastion
-    Note over AWS: 1.9M rows DELETED<br/>Automated snapshots DELETED
-
-    Note over E: Thursday ~11PM — Discovers destruction
-    E->>AWS: Check for backups...
-    AWS-->>E: Snapshots also deleted
-
-    Note over E: Friday ~12AM
-    E->>AWS: Opens support ticket, upgrades to Business Support
-
-    Note over E: Friday ~10PM (24 hours later)
-    AWS-->>E: Snapshot restored from internal backup
-    E->>TF: terraform apply (rebuild from restored snapshot)
-    Note over AWS: ✅ 1,943,200 rows restored
+    TF->>AWS: Deletes the VPC, RDS database, ECS cluster, load balancers, and bastion
+    Note over AWS: Automated snapshots deleted too
+    Note over E: Friday ~12 AM, support ticket and Business Support upgrade
+    AWS-->>E: A snapshot exists on AWS's side
+    Note over E: Friday ~10 PM, about 24 hours after the deletion
+    AWS-->>E: Snapshot restored: 1,943,200 rows in courses_answer

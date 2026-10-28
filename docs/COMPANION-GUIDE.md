@@ -6,7 +6,7 @@
 
 ## Introduction
 
-On a Thursday night in February 2024, an engineer sat down to do some routine infrastructure
+On Thursday, 26 February 2026, an engineer sat down to do some routine infrastructure
 work. Twenty-four hours later, a production database holding **1.9 million rows** and
 **2.5 years of irreplaceable student data** was gone — wiped out by a single command.
 
@@ -39,14 +39,12 @@ or both.
 
 | Time | Event |
 |------|-------|
-| **Thursday, ~10 PM** | Engineer starts working on infrastructure from a new laptop |
-| **Thursday, ~10:15 PM** | Terraform can't find local state file — plans to _create_ all resources |
-| **Thursday, ~10:30 PM** | AI agent runs `terraform apply`, creating duplicate infrastructure |
-| **Thursday, ~10:45 PM** | AI agent attempts cleanup by unpacking an old state archive |
-| **Thursday, ~11:00 PM** | AI agent runs `terraform destroy` — production database is deleted |
-| **Thursday, ~11:05 PM** | Engineer discovers all tables are gone. Automated RDS snapshots are _also_ gone. |
-| **Friday, all day** | Emergency recovery with AWS Business Support ($100/month saved the day) |
-| **Friday, ~10 PM** | Database restored from a manual backup. 24 hours of downtime. |
+| **Thursday, ~10 PM** | The engineer starts deploying website changes with Terraform from a new computer. The state file is still on the old one, so Terraform plans to create everything again |
+| **Thursday, ~11 PM** | After an auto-approved apply, and a cleanup in which the agent unpacks the old state archive over the current state, `terraform destroy` deletes production, including the RDS database. The automated snapshots are gone too |
+| **Friday, ~12 AM** | The engineer opens a support ticket and upgrades to AWS Business Support (about 10% more on the cloud bill) for a faster response |
+| **Friday, ~12:30 AM** | AWS Support confirms that a snapshot exists on its side, although the console doesn't show it |
+| **Friday, during the day** | While AWS works on the restore, the engineer rebuilds the rest of the infrastructure and adds safeguards |
+| **Friday, ~10 PM** | About 24 hours after the deletion, AWS restores the snapshot: 1,943,200 rows in `courses_answer` |
 
 ### The Root Cause Chain
 
@@ -77,7 +75,7 @@ one possible:
 
 Terraform tracks what it manages through a **state file** (`terraform.tfstate`). When the
 engineer switched to a new laptop, this file didn't come along. Without it, Terraform
-believed _nothing existed_ — it planned to create 17 brand-new resources, oblivious to
+believed _nothing existed_ — it planned to create the entire environment again, oblivious to
 the production infrastructure already running.
 
 **The fix:** Store state in a remote backend. In your Azure environment, use Azure Blob
@@ -97,14 +95,17 @@ team or process.
 
 #### Failure 3: Unrestricted AI Agent Access
 
-The AI coding agent (Claude Code) had full terminal access. It could read files, write
-files, and execute _any_ command — including `terraform destroy` — without human review.
-The agent was trying to be helpful by cleaning up the duplicate resources it had created,
-but it had no guardrails preventing destructive operations.
+The AI coding agent (Claude Code) could run Terraform, the cloud CLI, and file operations.
+It ran the plan and the apply, unpacked the old state archive over the current state, and
+then announced that a `terraform destroy` would be cleaner. The engineer saw the message
+and let it continue, because it sounded logical.
 
-**The fix:** Use AI agents that require human approval before executing commands. GitHub
-Copilot CLI, for example, shows every command before execution and waits for explicit
-approval.
+**The fix:** Don't depend on the agent's judgment, or on a person spotting the danger in
+the moment. Enforce limits outside the agent: `preToolUse` hooks that deny destructive
+commands and state edits, custom agents limited to the tools a task needs, and production
+changes that only a pipeline makes after a human approves the plan. Approval prompts help,
+but a person can approve for a whole session, and a plausible request is exactly what
+got approved here.
 
 #### Failure 4: No Deletion Protection
 
@@ -120,8 +121,8 @@ manual removal before deletion can proceed.
 #### Failure 5: Backups Tied to Instance Lifecycle
 
 AWS RDS automated snapshots are deleted when the RDS instance is deleted. The engineer
-had backups configured — but they vanished along with the database. Only a separate
-manual backup (created independently) survived and enabled recovery.
+had backups configured — but they vanished along with the database. Recovery depended on
+AWS Support finding a snapshot on its side that the console didn't show.
 
 **The fix:** In your Azure environment, use Azure Backup Vaults to maintain independent,
 immutable backups that exist outside the resource's lifecycle. Azure Backup Vaults
@@ -134,18 +135,17 @@ the database is deleted.
 
 By working through this exercise (or reading this guide), you will:
 
-1. **Understand how Terraform state drift leads to infrastructure destruction** — see
-   firsthand what happens when Terraform loses track of real-world resources
-2. **Experience (safely) the chain of failures** that destroyed a production database —
-   the simulation walks through each step interactively
-3. **Practice database recovery from backup** — restore a destroyed database and verify
-   data integrity
-4. **Implement Azure-equivalent guardrails** — resource locks, immutable backup vaults,
-   and remote state backends
-5. **Implement GitHub guardrails** — CODEOWNERS, Actions workflows for plan/apply/destroy,
-   and environment approvals
-6. **Configure AI agent guardrails** — Copilot CLI custom instructions, plan mode, and
-   permission boundaries
+1. **Understand how Terraform state drift leads to infrastructure destruction**: see what
+   Terraform believes when its state is missing, and then replaced
+2. **Experience the chain of failures safely**: replay it with real Terraform commands
+   against a disposable production
+3. **Recover and drill**: restore from an independent backup and prove that it restores
+4. **Build infrastructure guardrails**: remote state, deletion protection, backups that
+   survive deletion, and code owners
+5. **Govern AI agents**: hooks that deny destructive tool calls, scoped agents, and
+   path-specific instructions
+6. **Release through a gate**: turn the incident into a regression test and require human
+   approval for production changes
 
 ---
 
@@ -162,8 +162,8 @@ incident on its own.
 │                    DEFENSE IN DEPTH                           │
 │                                                              │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │  Layer 3: AI Agent Guardrails (Copilot CLI)            │  │
-│  │  • Permission system • Plan mode • Custom instructions │  │
+│  │  Layer 3: AI Agent Guardrails (Copilot)                │  │
+│  │  • Hooks • Scoped agents • Instructions                │  │
 │  │  ┌──────────────────────────────────────────────────┐  │  │
 │  │  │  Layer 2: Workflow Guardrails (GitHub)            │  │  │
 │  │  │  • CODEOWNERS • Actions CI/CD • Approvals        │  │  │
@@ -370,97 +370,65 @@ Branch protection rules prevent direct pushes to production branches:
 
 ---
 
-### Layer 3: AI Agent Guardrails (Copilot CLI)
+### Layer 3: AI Agent Guardrails (Copilot)
 
-The third layer addresses the most novel aspect of this incident: an AI coding agent
-with unrestricted access ran a destructive command without human review. This is a new
-class of risk that traditional infrastructure management didn't anticipate.
+The third layer addresses the newest part of this incident: an AI coding agent with broad
+permissions ran a destructive command, and the person supervising it agreed because the
+request sounded reasonable. Agents need limits that don't depend on their judgment, and
+people need checks that don't depend on noticing danger in the moment.
 
-GitHub Copilot CLI is designed with safety as a core principle.
+#### Hooks enforce; instructions ask
 
-#### Permission System
+Custom instructions (`.github/copilot-instructions.md` and path-specific
+`.github/instructions/*.instructions.md` files) tell an agent how to behave. They are useful
+context, but a model can misread or override them. **Hooks** are code. A `preToolUse` hook
+in `.github/hooks/*.json` runs before every tool call that Copilot CLI or Copilot cloud
+agent makes, receives the call as JSON, and can deny it with a reason:
 
-Every command Copilot CLI suggests is **shown to the user before execution**. The agent
-cannot silently run commands in the background. When it wants to execute something, you
-see exactly what it plans to run and must explicitly approve it.
-
-This is the fundamental difference from the incident. The AI agent in the incident had
-autonomous terminal access — it could execute `terraform destroy` without showing the
-command first. Copilot CLI would display:
-
-```
-🤖 I'd like to run: terraform destroy
-   This will destroy all resources managed by Terraform.
-   [Allow] [Deny] [Edit]
-```
-
-The human always makes the final decision.
-
-#### Plan Mode
-
-Plan mode tells Copilot CLI to create a detailed, reviewable plan before taking any
-action. Instead of executing commands one at a time, the agent outlines its entire
-approach and waits for approval of the plan as a whole.
-
-For infrastructure work, this means you can review the _sequence_ of operations before
-any of them execute — catching dangerous patterns like "apply then destroy" before
-they start.
-
-#### Custom Instructions
-
-Custom instructions (`.github/copilot-instructions.md`) let you define domain-specific
-safety rules that Copilot CLI follows:
-
-```markdown
-## Infrastructure Safety Rules
-
-- NEVER run `terraform destroy` without explicit confirmation
-- ALWAYS run `terraform plan` first and display the output
-- NEVER modify terraform.tfstate files directly
-- ALWAYS verify the target environment before any Terraform operation
-- Flag any plan that shows resource destruction for human review
+```json
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      { "type": "command", "bash": "node scripts/hooks/terraform-guard.mjs", "timeoutSec": 10 }
+    ]
+  }
+}
 ```
 
-These instructions act as a persistent safety context — the agent carries them across
-every interaction, ensuring infrastructure-specific caution even when the human might
-forget.
+A hook that crashes or exits non-zero denies the call, but a hook that times out lets it
+through. Keep hooks fast, and test them against the commands you fear: this exercise
+replays the incident's own tool calls. Remember what they can't see: commands a person
+runs, scripts an agent writes and then executes, and tools on other surfaces.
 
-#### Directory Scoping
+#### Scoped agents and permission prompts
 
-You can limit which directories and files Copilot CLI can access, preventing the agent
-from accidentally modifying production configurations when working on development tasks.
+A custom agent (`.github/agents/*.agent.md`) can be limited to the tools its task needs,
+such as read and search for an analyst. Copilot CLI asks before running commands that
+modify or execute files, unless a person approves the tool for the whole session or uses
+an autonomous mode. Prompts help, but the incident shows their limit: a plausible
+destructive command can be approved. Treat them as one layer, not the last one.
 
-#### The Key Contrast
+#### Plan first, then let a pipeline apply
 
-In the original incident, the failure chain was:
-
-1. AI agent had full terminal access ✗
-2. AI agent executed `terraform destroy` without showing the command first ✗
-3. No confirmation was requested before a destructive operation ✗
-4. The human learned about the destruction only after it happened ✗
-
-With Copilot CLI's guardrails:
-
-1. Every command is shown before execution ✓
-2. `terraform destroy` would be flagged and require explicit approval ✓
-3. Custom instructions would add additional warnings ✓
-4. Plan mode would reveal the full sequence of operations upfront ✓
+Plan mode in Copilot CLI makes the agent propose its approach before it acts. Carry the
+same idea through to production: agents may write code and run `terraform plan`, and a
+pipeline applies the plan only after a human approves it.
 
 ---
 
-## The Exercise: Six Scenarios
+## The Exercise: Six Steps
 
-This exercise walks you through the incident and its prevention across six hands-on
-scenarios. Each builds on the last:
+The exercise replays the incident, then builds a guardrail for each layer it crossed:
 
-| # | Scenario | What You Do | What You Learn |
-|---|----------|-------------|----------------|
-| 1 | **Setup Production** | Build the simulated production environment | How the production database is structured |
-| 2 | **Simulate Incident** | Walk through the exact failure chain | How compounding failures lead to disaster |
-| 3 | **Recover Database** | Restore from the pre-incident backup | Why independent backups are essential |
-| 4 | **Azure Guardrails** | Implement resource locks, backup vaults, remote state | Platform-level protection mechanisms |
-| 5 | **GitHub Guardrails** | Create CODEOWNERS, CI/CD workflows, environment approvals | Process-level protection mechanisms |
-| 6 | **Copilot CLI Guardrails** | Configure custom instructions and safety rules | AI agent-level protection mechanisms |
+| # | Step | What you do | What you learn |
+|---|------|-------------|----------------|
+| 1 | **Replay the incident** | Run the failure chain with real Terraform commands against a disposable production | How missing state and an auto-approved destroy compound |
+| 2 | **Recover** | Restore from an independent backup and run a restore drill | Why backups must outlive the resource, and must be tested |
+| 3 | **Postmortem** | Draft a blameless postmortem with a read-only agent, then approve it | How agents speed up analysis while humans decide |
+| 4 | **Infrastructure guardrails** | Have an agent add remote state, `prevent_destroy`, retained backups, and CODEOWNERS | Protection that holds even when a destroy is attempted |
+| 5 | **Agent hooks** | Write a `preToolUse` hook and replay the incident's tool calls through it | Enforcing agent limits in code |
+| 6 | **Release gate** | Make the replay a CI regression test and release through an approved environment | Pipelines enforce, humans approve |
 
 ---
 
@@ -536,8 +504,8 @@ its own review process, and its own approval chain.
 
 AI agents are powerful tools, but they optimize for _completing the task_ — not for
 _questioning whether the task should be done_. Human-in-the-loop review is essential
-for any operation that could cause data loss. Copilot CLI's permission system exists
-precisely for this reason.
+for any operation that could cause data loss. Enforce it with hooks and pipelines rather
+than relying on someone approving the right prompt in the moment.
 
 ### 4. Enable Deletion Protection on All Production Databases
 
@@ -591,6 +559,7 @@ These changes take less than a day and prevent the highest-impact failures. In y
 - [ ] Move Terraform state to an Azure Blob Storage backend with lease locking
 - [ ] Add a `CODEOWNERS` file requiring review for infrastructure changes
 - [ ] Add `.github/copilot-instructions.md` with infrastructure safety rules
+- [ ] Add a `preToolUse` hook in `.github/hooks/` that denies destructive Terraform and database commands
 
 ### Build Next (Medium Effort)
 
@@ -631,6 +600,7 @@ These practices require cultural change and continuous investment:
 
 ### GitHub Guardrails
 - [GitHub Copilot CLI Documentation](https://docs.github.com/copilot/concepts/agents/about-copilot-cli)
+- [Hooks for GitHub Copilot](https://docs.github.com/copilot/concepts/customizations/hooks)
 - [GitHub Actions Environments](https://docs.github.com/actions/deployment/targeting-different-environments/using-environments-for-deployment)
 - [CODEOWNERS Documentation](https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners)
 - [Branch Protection Rules](https://docs.github.com/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)
@@ -643,7 +613,7 @@ These practices require cultural change and continuous investment:
 
 <p align="center">
   <em>
-    Built for the <strong>Preventing Production Database Disasters</strong> GitHub Skills exercise.<br/>
+    Built for the <strong>Turn a Production Incident into Guardrails</strong> exercise.<br/>
     Because the best time to learn from a disaster is before it happens to you.
   </em>
 </p>

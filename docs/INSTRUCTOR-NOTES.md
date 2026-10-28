@@ -1,79 +1,85 @@
-# 👩‍🏫 Instructor Notes
+# Instructor notes
 
-## Workshop Overview
+## Workshop overview
 
-**Title:** Preventing Production Database Disasters — A Hands-On Exercise
-**Duration:** 1.5–2 hours (instructor-led) or 2–3 hours (self-paced)
-**Audience:** Azure engineers, DevOps engineers, platform engineers, SREs, and developers working with IaC on Azure
-**Prerequisites:** Docker, basic Terraform knowledge, Git
+**Title:** Turn a production incident into guardrails
+**Duration:** about 2.5 hours instructor-led, or 3 hours self-paced
+**Audience:** platform engineers, DevOps engineers, SREs, and developers who use AI agents
+with infrastructure as code
+**Prerequisites:** a GitHub account with Copilot, Codespaces, and Actions; basic Git and
+Terraform. No cloud account is needed: everything runs in containers in a Codespace.
 
-## Suggested Timeline
+## Suggested timeline
 
 | Time | Activity | Step |
 |---|---|---|
-| 0:00–0:10 | Introduction and incident overview | Slides / discussion |
-| 0:10–0:25 | Step 1: Build production environment | Hands-on |
-| 0:25–0:45 | Step 2: Simulate the incident | Hands-on + discussion |
-| 0:45–0:55 | Step 3: Recovery | Hands-on |
-| 0:55–1:05 | Break | — |
-| 1:05–1:20 | Step 4: Azure guardrails | Review + discussion |
-| 1:20–1:40 | Step 5: GitHub guardrails | Hands-on |
-| 1:40–1:55 | Step 6: Copilot CLI guardrails | Hands-on + reflection |
-| 1:55–2:00 | Wrap-up and key takeaways | Discussion |
+| 0:00–0:10 | The incident and the agentic SDLC loop | Discussion |
+| 0:10–0:35 | Copy the template, start a Codespace, `make setup`, `make replay` | 1 |
+| 0:35–0:50 | `make recover`, `make drill`, RTO and RPO | 2 |
+| 0:50–1:10 | Agent-drafted, human-approved postmortem | 3 |
+| 1:10–1:20 | Break | — |
+| 1:20–1:45 | Agent-built infrastructure guardrails; replay is blocked | 4 |
+| 1:45–2:10 | Hooks; `make agent-replay` until guarded; live test in Copilot CLI | 5 |
+| 2:10–2:30 | Regression gate, approval-gated Release, agentic review | 6 |
 
-## Discussion Prompts by Step
+Each step merges through a pull request. CI takes 2 to 3 minutes, so encourage learners to
+start the next lesson's reading while CI runs.
 
-### After Step 2 (The Incident)
-- "At which exact point could this have been prevented?"
-- "Who has had a 'close call' with production infrastructure?"
-- "Should AI agents ever be allowed to run `terraform destroy`?"
+## Discussion prompts
 
-### After Step 3 (Recovery)
-- "What would happen if there were no backups at all?"
-- "How long would recovery take in YOUR infrastructure?"
-- "How often do you TEST your backups?"
+### After Step 1 (replay)
 
-### After Step 4 (Azure Guardrails)
-- "Are resource locks a silver bullet? What are the downsides?"
-- "How do immutable backups differ from automated snapshots?"
-- "Who in your org would need to approve lock removal?"
+- At which moment could a person have stopped the chain? What would they have needed to know?
+- Why did the plan look reasonable to the agent?
 
-### After Step 5 (GitHub Guardrails)
-- "Do you have CODEOWNERS for infrastructure files today?"
-- "What does your IaC deployment pipeline look like?"
-- "How would you handle emergency changes that bypass the pipeline?"
+### After Step 2 (recovery)
 
-### After Step 6 (Copilot CLI)
-- "How do you balance AI productivity with safety?"
-- "What custom instructions would you write for your infrastructure?"
-- "Is 'human-in-the-loop' enough, or do we need 'human-in-command'?"
+- The lab restores in seconds; the real recovery took about 24 hours. What made the difference?
+- When did your team last restore a production backup on purpose?
 
-## Common Questions
+### After Step 3 (postmortem)
 
-**Q: Can this really happen with proper CI/CD?**
-A: Yes — the article describes a case where infrastructure was managed locally, bypassing CI/CD. The exercise demonstrates why enforcing CI/CD for IaC is critical.
+- Which parts of the agent's draft were wrong or unsupported? How did you find out?
+- What makes a postmortem blameless without making it vague?
 
-**Q: Isn't this just a Terraform problem?**
-A: No. The root causes (local state, unrestricted AI access, no deletion protection) apply to any IaC tool. Pulumi, CloudFormation, Bicep — all need similar guardrails.
+### After Step 4 (infrastructure guardrails)
 
-**Q: What if learners don't have Copilot CLI for Step 6?**
-A: Step 6 can be completed without Copilot CLI installed. The custom instructions file and reflection can be written based on the documentation provided.
+- Which guardrail would have stopped the incident by itself? Which ones only reduce the damage?
+- Why does `delete_automated_backups` need an apply before it protects anything?
 
-**Q: Is the local simulation good enough?**
-A: For this exercise, yes. The key lesson is about the failure chain and guardrails, not about specific cloud API behavior. The local simulation (Azurite for state backend, PostgreSQL for the database) provides enough realism. The original incident was on AWS, but the same failure chain applies to Azure — replace RDS with PostgreSQL Flexible Server, S3 with Blob Storage, ECS with Container Apps.
+### After Step 5 (agent hooks)
 
-## Setup Requirements
+- Which bypasses did you find, and which ones are you accepting?
+- Where is the line between a hook that protects and one that makes the agent useless?
 
-- Each learner needs: Docker Desktop, Terraform CLI, Git
-- The GitHub template repo should be accessible (public or org-internal)
-- Internet access needed for: Docker image pulls, exercise-toolkit workflows
-- ~2GB disk space for Docker images
-- Copilot CLI optional but recommended for Step 6
+### After Step 6 (release)
 
-## Tips for Facilitators
+- Is a human approval meaningful if the reviewer doesn't read the plan?
+- Which of your own incidents could become regression tests like this one?
 
-1. **Let Step 2 sink in** — the simulation is intentionally dramatic. Give learners time to process.
-2. **Encourage discussion** — the best learning comes from sharing real-world experiences.
-3. **Don't rush Steps 5-6** — these are the actionable takeaways learners will apply at work.
-4. **Share the original article** — reading the author's perspective adds empathy and realism.
-5. **Customize for your org** — the exercise defaults to Azure. If your org uses AWS, refer to the AWS-AZURE-MAPPING.md for the original AWS context.
+## Common questions
+
+**Is the lab realistic?** Terraform, its state, and the commands are real. The cloud is
+modelled by `scripts/lab/control-plane.sh`, which creates and deletes a PostgreSQL database
+the way a cloud API would: it carries out any valid request. The original incident was on
+AWS; `docs/AWS-AZURE-MAPPING.md` and `infrastructure/azure` map each layer to Azure.
+
+**Why doesn't the apply in the replay create duplicates?** The lab's database name is
+unique, so the duplicate collides and the apply fails part-way, leaving a half-created
+resource in the new state. That mirrors the engineer cancelling the apply after some
+resources were created.
+
+**What if learners can't run Copilot CLI?** Every agent activity also works in Copilot Chat
+in VS Code. Repository hooks apply to Copilot CLI and Copilot cloud agent, so the live hook
+test in Step 5 needs one of them; `make agent-replay` works for everyone.
+
+**What if a learner's plan doesn't include environment protection?** Required reviewers on
+environments are available for public repositories on every plan. Ask learners to keep
+their copy public, which is the template's default.
+
+## Setup checklist
+
+- Confirm that learners can create Codespaces and run Actions in the account or
+  organization they will use.
+- Ask learners to copy the template rather than fork it, and to keep Issues and Actions on.
+- Run the exercise once yourself, including a Release run, before the workshop.

@@ -1,0 +1,21 @@
+{
+  "name": "prod-db-incident-sim",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "An agentic SDLC exercise: replay a real production database incident, then build guardrails that stop it.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node scripts/check-repository.mjs",
+    "checkpoint": "node scripts/checkpoint.mjs",
+    "replay:agent": "node scripts/replay-agent.mjs",
+    "compile:review": "node scripts/compile-review.mjs",
+    "verify": "npm test && npm run check"
+  },
+  "devDependencies": {
+    "yaml": "2.9.0"
+  }
+}
