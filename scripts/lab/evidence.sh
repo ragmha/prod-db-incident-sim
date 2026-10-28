@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Produces the evidence that CI publishes for the exercise coach: a restore
-# drill, the incident replay, and the agent tool-call replay, run in that order
-# against a fresh lab.
+# Produces the evidence that CI and the Release workflow publish for the exercise
+# coach: a restore drill, the incident replay, and the agent tool-call replay.
+# If the replay deletes production, production is restored afterwards so the
+# lab stays usable.
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
@@ -13,4 +14,9 @@ bash "$LAB_ROOT/scripts/lab/setup.sh"
 bash "$LAB_ROOT/scripts/lab/drill.sh"
 bash "$LAB_ROOT/scripts/lab/replay-incident.sh"
 node "$LAB_ROOT/scripts/replay-agent.mjs" --json "$LAB_EVIDENCE_DIR/agent-replay.json"
+if [ "$(lab_count "$LAB_DATABASE" courses_answer)" -eq 0 ]; then
+  lab_say "Restoring production after the replay"
+  bash "$LAB_ROOT/scripts/lab/recover.sh" >/dev/null
+  echo "Production restored."
+fi
 node "$LAB_ROOT/scripts/lab/evidence.mjs" "$LAB_EVIDENCE_DIR"
