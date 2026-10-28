@@ -13,6 +13,9 @@ lab_compose up --detach --wait --quiet-pull
 config="$LAB_ROOT/infrastructure/lab"
 lab_tf_init "$config"
 if [ "$(lab_tf_resources "$config")" -eq 0 ]; then
+  if lab_db_exists "$LAB_DATABASE"; then
+    lab_die "The $LAB_DATABASE database exists, but Terraform's state doesn't record it: the lab's own new-laptop problem. Run make reset to rebuild a clean lab."
+  fi
   lab_say "Provisioning production with Terraform (infrastructure/lab)"
   # Stands in for how production was created long before the incident. Later
   # changes go through make plan-check and make apply, or the Release workflow.

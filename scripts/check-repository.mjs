@@ -21,7 +21,8 @@ for (const path of [
 
 // The starter must stay vulnerable, or Step 1 has nothing to replay. Learner
 // copies change these files on purpose, so check them only in the template.
-if (process.argv.includes("--starter") || process.env.GITHUB_REPOSITORY === "ragmha/prod-db-incident-sim") {
+const checkStarter = process.argv.includes("--starter") || process.env.GITHUB_REPOSITORY === "ragmha/prod-db-incident-sim";
+if (checkStarter) {
   const starter = await text("infrastructure/lab/main.tf");
   need(!/prevent_destroy|backend\s+"/.test(starter) && /delete_automated_backups\s*=\s*true/.test(starter),
     "infrastructure/lab/main.tf must remain the vulnerable starter configuration.");
@@ -82,5 +83,5 @@ if (failures.length) {
   console.error(failures.map((failure) => `- ${failure}`).join("\n"));
   process.exitCode = 1;
 } else {
-  console.log("Repository surfaces, starter state, YAML, action pins, Codespace, and local links are consistent.");
+  console.log(`Repository surfaces, ${checkStarter ? "starter state, " : ""}YAML, action pins, Codespace, and local links are consistent.`);
 }
