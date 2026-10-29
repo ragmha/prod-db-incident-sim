@@ -5,9 +5,10 @@ of [skills/agentic-workflows-that-read-the-room](https://github.com/skills/agent
 a narrow agent interprets repository context and offers feedback. It does not replace
 deterministic CI or a human decision.
 
-The source is `.github/workflows/guardrail-review.md`. GitHub runs the compiled
-`.github/workflows/guardrail-review.lock.yml`. Commit the source, the generated lock, and
-the compiler's `.github/aw/actions-lock.json` together.
+The source is `.github/workflows/guardrail-review.md`. The template ships only that
+source: in Step 6 you compile it into `.github/workflows/guardrail-review.lock.yml`, which
+GitHub runs, and commit both. The compiler also updates `.github/aw/actions-lock.json`;
+commit it if it changes.
 
 ## Author and compile
 
@@ -24,10 +25,10 @@ configuration; it does not call a model or prove that the review is good. The np
 pins the `github/gh-aw-actions` runtime to the v0.86.2 release commit and refuses any other
 compiler version.
 
-CI downloads the official `linux-amd64` v0.86.2 binary, checks its SHA-256, recompiles,
-and compares the result with the committed lock. Differences in executable YAML,
-permissions, source hashes, or pinned dependencies fail; comment formatting that differs
-between platforms does not.
+CI downloads the official `linux-amd64` v0.86.2 binary, checks its SHA-256, and compiles
+the source on every run. Once you commit a lock, CI also compares it with the fresh
+compilation. Differences in executable YAML, permissions, source hashes, or pinned
+dependencies fail; comment formatting that differs between platforms does not.
 
 ## Running the review live is optional
 

@@ -32,8 +32,14 @@ export function compareWorkflowLocks(committed, compiled) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const committed = execFileSync("git", ["show", `HEAD:${lockPath}`],
-    { cwd: root, encoding: "utf8", maxBuffer: 2 * 1024 * 1024 });
-  compareWorkflowLocks(committed, readFileSync(resolve(root, lockPath), "utf8"));
-  console.log("Compiled workflow, source hashes, compiler version, and dependency manifest match the committed lock.");
+  // The template ships only the source. Learners compile and commit the lock in Step 6.
+  const tracked = execFileSync("git", ["ls-files", "--", lockPath], { cwd: root, encoding: "utf8" }).trim();
+  if (!tracked) {
+    console.log("No compiled lock is committed yet; learners compile and commit it in Step 6.");
+  } else {
+    const committed = execFileSync("git", ["show", `HEAD:${lockPath}`],
+      { cwd: root, encoding: "utf8", maxBuffer: 2 * 1024 * 1024 });
+    compareWorkflowLocks(committed, readFileSync(resolve(root, lockPath), "utf8"));
+    console.log("Compiled workflow, source hashes, compiler version, and dependency manifest match the committed lock.");
+  }
 }

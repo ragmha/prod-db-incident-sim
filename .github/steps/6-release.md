@@ -17,14 +17,17 @@ A bounded agentic review adds a second opinion that cannot change anything.
 2. **Regression gate.** In `.github/workflows/ci.yml`, set `LAB_ENFORCE` to `"true"`.
    To see the gate work, push a throwaway branch that removes `prevent_destroy`, open a
    draft pull request, watch CI fail, then close it.
-3. **Agentic review.** Tailor `.github/workflows/guardrail-review.md` to your guardrails,
-   then compile it with the pinned compiler:
+3. **Agentic review.** The starter ships only the review's Markdown source,
+   `.github/workflows/guardrail-review.md`. Tailor it to your guardrails, then compile it
+   with the pinned compiler:
 
    ```bash
    npm run compile:review
    ```
 
-   Commit the Markdown and the generated `.lock.yml`. Don't edit the lock file by hand.
+   Commit the Markdown and the generated `.github/workflows/guardrail-review.lock.yml`,
+   which is what Actions runs. Don't edit the lock file by hand: from now on, CI recompiles
+   the source and fails if your committed lock differs.
    Running the review live is optional and needs a separate token; see
    [the agentic workflow guide](https://github.com/{{repository}}/blob/{{branch}}/docs/agentic-workflows.md).
    If you don't run it, label your report **manual review; no live agent run**.

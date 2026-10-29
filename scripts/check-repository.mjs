@@ -1,4 +1,5 @@
 import { readFile, access } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseDocument } from "yaml";
@@ -16,7 +17,6 @@ for (const path of [
   "infrastructure/lab/main.tf", "tests/incident/agent-tool-calls.json",
   ".devcontainer/devcontainer.json", ".github/workflows/ci.yml", ".github/workflows/exercise.yml",
   ".github/workflows/release.yml", ".github/workflows/guardrail-review.md",
-  ".github/workflows/guardrail-review.lock.yml",
 ]) need(files.includes(path), `Missing required repository surface: ${path}`);
 
 // The starter must stay vulnerable, or Step 1 has nothing to replay. Learner
@@ -33,6 +33,9 @@ if (checkStarter) {
     "Learner reports must not ship in the starter.");
   need((await text(".github/workflows/ci.yml")).includes('LAB_ENFORCE: "false"'),
     "The starter's CI must not enforce the regression gate; learners turn it on in Step 6.");
+  const lockPath = ".github/workflows/guardrail-review.lock.yml";
+  need(!execFileSync("git", ["ls-files", "--", lockPath], { cwd: root, encoding: "utf8" }).trim(),
+    `Don't commit ${lockPath} in the template; learners compile and commit it in Step 6.`);
 }
 
 for (const path of files.filter((path) => /\.(?:ya?ml)$/.test(path))) {

@@ -16,7 +16,7 @@ step whenever an evidence file existed.
 | Lab | `docker-compose.yml`, `infrastructure/lab`, `scripts/lab`, `Makefile` |
 | Agent replay | `scripts/replay-agent.mjs` and `tests/incident/agent-tool-calls.json` |
 | Release | `.github/workflows/release.yml` and `scripts/lab/release.sh` |
-| Agentic review | `.github/workflows/guardrail-review.md` and its compiled lock |
+| Agentic review | `.github/workflows/guardrail-review.md`; learners compile and commit its lock in Step 6 |
 
 ## Evidence the coach trusts
 
@@ -43,7 +43,10 @@ template repository or in this canonical repository; dispatch **Exercise coach**
 
 The starter must stay vulnerable: no backend, no `prevent_destroy`,
 `delete_automated_backups = true`, no CODEOWNERS, hooks, or reports, and
-`LAB_ENFORCE: "false"` in CI. `npm run check` enforces this in the canonical repository.
+`LAB_ENFORCE: "false"` in CI. It also ships the review workflow's source without its
+compiled lock: compiling is part of Step 6, and generated lock files contain placeholders
+such as `${MCP_GATEWAY_API_KEY}` that strict local secret scanners flag. `npm run check`
+enforces all of this in the canonical repository.
 
 The Release workflow rebuilds production from the first commit that added
 `infrastructure/lab/main.tf`. In learner copies, that's the template's initial commit.
@@ -54,7 +57,7 @@ The Release workflow rebuilds production from the first commit that added
 npm ci --ignore-scripts
 npm run verify          # unit tests and repository checks
 make evidence           # full lab: drill, incident replay, agent replay
-npm run compile:review  # needs gh-aw v0.86.2
+npm run compile:review  # needs gh-aw v0.86.2; don't commit the generated lock here
 ```
 
 Before releasing a change, replay a learner copy end to end: break the starter with the
@@ -62,8 +65,8 @@ replay, add the Step 4 and Step 5 guardrails, confirm that `make evidence` with
 `LAB_ENFORCE=true` passes, and run Release with an approval.
 
 Keep action references at full commit SHAs, Terraform at the version pinned in CI and the
-Codespace, and the gh-aw compiler at v0.86.2. Regenerate the review lock with
-`npm run compile:review`; never edit it by hand.
+Codespace, and the gh-aw compiler at v0.86.2. Generate review locks only with
+`npm run compile:review`; never edit them by hand.
 
 ## Known limits
 
