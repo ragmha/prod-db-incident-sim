@@ -1,0 +1,72 @@
+name: Release
+
+# Applies your reviewed infrastructure configuration to production, only after
+# a human approves the production environment. The lab keeps no production
+# between runs, so both jobs rebuild it with the starter's configuration first.
+# See scripts/lab/release.sh.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan for review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      changes: ${{ steps.plan.outputs.changes }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.17.0
+          terraform_wrapper: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+      - id: plan
+        name: Plan this commit against production
+        run: bash scripts/lab/release.sh plan
+
+  apply:
+    name: Apply after approval
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: production
+    env:
+      LAB_ENFORCE: "true"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.17.0
+          terraform_wrapper: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+      - name: Apply only the approved plan
+        env:
+          APPROVED_CHANGES: ${{ needs.plan.outputs.changes }}
+        run: bash scripts/lab/release.sh apply
+      - name: Verify production by replaying the incident
+        run: bash scripts/lab/evidence.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: release-evidence
+          path: .lab/evidence/lab-evidence.json
+          if-no-files-found: warn
+          retention-days: 30

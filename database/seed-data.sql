@@ -15,8 +15,8 @@
 -- scale (~2,000 students, 50,000+ answer rows) so the incident simulation
 -- feels realistic without requiring gigabytes of storage.
 --
--- Usage:
---   psql -U admin -d course_platform -f seed-data.sql
+-- Usage: make setup (loads this file into an empty course_platform database,
+-- then runs database/verify.sh).
 -- =============================================================================
 
 BEGIN;
@@ -376,23 +376,3 @@ FROM generate_series(1, 2000) AS s(id)
 WHERE random() < 0.60;
 
 COMMIT;
-
--- =============================================================================
--- Quick sanity check — run after seeding to verify row counts
--- =============================================================================
-DO $$
-DECLARE
-    r RECORD;
-BEGIN
-    FOR r IN
-        SELECT 'courses'            AS tbl, count(*) AS cnt FROM courses
-        UNION ALL SELECT 'students',           count(*) FROM students
-        UNION ALL SELECT 'enrollments',        count(*) FROM enrollments
-        UNION ALL SELECT 'homework_questions', count(*) FROM homework_questions
-        UNION ALL SELECT 'courses_answer',     count(*) FROM courses_answer
-        UNION ALL SELECT 'leaderboard',        count(*) FROM leaderboard
-        UNION ALL SELECT 'login_providers',    count(*) FROM login_providers
-    LOOP
-        RAISE NOTICE '  %-25s %s rows', r.tbl, r.cnt;
-    END LOOP;
-END $$;

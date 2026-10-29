@@ -207,16 +207,14 @@ This policy would **deny deletion of any production-tagged PostgreSQL server**, 
 
 ### Timeline Comparison
 
-| Time | AWS (Actual) | Azure (With Locks + Backup) |
+| Time | AWS (actual, from the published account) | Azure (with locks and a backup vault) |
 |---|---|---|
-| **T+0** | `terraform destroy` executes | `terraform destroy` **blocked** by resource lock |
-| **T+5m** | Team discovers production is down | Team sees Terraform errors, investigates |
-| **T+10m** | Panic — RDS instance gone, automated backups gone | Lock identified as blocker, team realizes state mismatch |
-| **T+30m** | Searching for manual snapshots | Fix: reinitialize state from Azure, import existing resources |
-| **T+1h** | Contacting AWS Support | Production never went down |
-| **T+4h** | AWS Support identifies internal snapshot | N/A — incident avoided |
-| **T+8h** | Restoration in progress | N/A |
-| **T+12h** | Data restored with 4-hour gap | N/A |
+| **T+0** (Thu ~11 PM) | `terraform destroy` deletes production, including the RDS instance | `terraform destroy` is **blocked** by the resource lock |
+| **Minutes later** | The engineer finds the platform down; the console shows no snapshots | The team sees Terraform errors and investigates |
+| **T+1h** (Fri ~12 AM) | Opens a support ticket and upgrades to Business Support | The lock is identified as the blocker; the team fixes the state mismatch |
+| **T+1.5h** | AWS Support confirms that a snapshot exists on its side | Production never went down |
+| **T+2–3h** | A call with AWS Support, escalated internally | N/A — incident avoided |
+| **T+~23h** (Fri ~10 PM) | Snapshot restored: 1,943,200 rows in `courses_answer` | N/A |
 
 ---
 

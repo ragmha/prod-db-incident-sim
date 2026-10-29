@@ -1,66 +1,49 @@
-# Production Database Incident Simulation — GitHub Skills Exercise
-# Simulates an Azure production environment locally using Docker.
+# Disposable local stand-ins for the incident's platform.
 #
-# The original incident happened on AWS, but this exercise is framed for
-# Azure engineers — showing how the same disaster could occur in Azure
-# and what Azure-native guardrails prevent it.
+#   postgres     The production database server (AWS RDS in the incident;
+#                Azure Database for PostgreSQL in the Azure mapping).
+#                Terraform creates the course_platform database on it.
+#   state-store  A separate store for Terraform remote state (Amazon S3 or an
+#                Azure Storage account). Unused until you configure a backend.
 #
-# Services:
-#   - PostgreSQL: Simulates Azure Database for PostgreSQL Flexible Server
-#   - Azurite: Azure Storage emulator (Blob Storage for Terraform remote state)
+# Both containers trust local connections and publish no public port, so no
+# password is needed or stored. Never reuse this configuration outside the lab.
+name: prod-db-incident-sim
 
 services:
-  # ── Simulates Azure Database for PostgreSQL Flexible Server ──────────────
-  # In a real Azure environment, this would be:
-  #   azurerm_postgresql_flexible_server (Flexible Server)
-  #   with deletion protection, geo-redundant backups, and resource locks.
-  #
-  # ⚠️ In this simulation, it has NO protection — just like the real incident.
   postgres:
     image: postgres:16-alpine
-    ports:
-      - "5432:5432"
     environment:
-      - POSTGRES_DB=course_platform
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=production_secret_2024
+      POSTGRES_USER: admin
+      POSTGRES_DB: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # Automated backups live on the database server, like RDS snapshots.
+      - snapshots:/snapshots
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d course_platform"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U admin -d postgres"]
+      interval: 2s
       timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - exercise-net
+      retries: 30
 
-  # ── Azure Storage Emulator (Terraform remote state backend) ──────────────
-  # Azurite emulates Azure Blob Storage locally.
-  # Used to demonstrate Terraform remote state with Azure backend —
-  # the guardrail that prevents the "new laptop" state loss problem.
-  azurite:
-    image: mcr.microsoft.com/azure-storage/azurite:latest
+  state-store:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: terraform
+      POSTGRES_DB: terraform_state
+      POSTGRES_HOST_AUTH_METHOD: trust
     ports:
-      - "10000:10000" # Blob service
-      - "10001:10001" # Queue service
-      - "10002:10002" # Table service
+      - "127.0.0.1:5433:5432"
     volumes:
-      - azurite-data:/data
-    command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0
+      - statedata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "10000"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U terraform -d terraform_state"]
+      interval: 2s
       timeout: 5s
-      retries: 5
-      start_period: 5s
-    networks:
-      - exercise-net
+      retries: 30
 
 volumes:
   pgdata:
-  azurite-data:
-
-networks:
-  exercise-net:
-    driver: bridge
+  snapshots:
+  statedata:

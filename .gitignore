@@ -1,0 +1,11 @@
+node_modules/
+.lab/
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+**/.env
+**/.env.*
+**/.DS_Store
+**/*.log

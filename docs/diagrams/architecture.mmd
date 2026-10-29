@@ -1,27 +1,13 @@
 ---
-title: "🏗️ Exercise Architecture — Local Docker Simulation"
+title: "The lab: real Terraform, local production"
 ---
 graph LR
-    subgraph Docker["Docker Compose"]
-        subgraph PG["🐘 PostgreSQL 16"]
-            DB[(course_platform<br/>55K+ rows)]
-        end
-
-        subgraph AZ["🔵 Azurite"]
-            Blob[Blob Storage<br/>Remote State]
-        end
-    end
-
-    TF[Terraform CLI] -->|azurerm provider<br/>plan/apply/destroy| AZ
-    TF -->|backend| AZ
-
-    Learner["👩‍💻 Learner"] -->|make commands| Docker
-    Learner -->|psql| PG
-    Learner -->|terraform| TF
-
-    GH[GitHub Actions] -->|validate steps| Evidence[evidence/ files]
-    Learner -->|git push| GH
-
-    style Docker fill:#f5f5f5,stroke:#424242
-    style PG fill:#336791,color:#fff
-    style AZ fill:#0078d4,color:#fff
+    Learner["Learner and Copilot<br/>(Codespace)"] -->|make setup, replay, recover| Make[Makefile and scripts/lab]
+    Make -->|plan, apply, destroy| TF[Terraform<br/>infrastructure/lab]
+    TF -->|local-exec provisioners| CP[control-plane.sh<br/>stand-in cloud API]
+    CP -->|create or drop database| PG[(postgres container<br/>course_platform)]
+    PG --- Snap[Automated backups<br/>on the database server]
+    Make -->|pg_dump| Offsite[Independent export<br/>.lab/offsite]
+    TF -. "pg backend (Step 4)" .-> State[(state-store container<br/>Terraform state)]
+    Learner -->|git push| CI[CI: drill, incident replay,<br/>agent replay]
+    CI -->|lab-evidence artifact| Coach[Exercise coach<br/>issue lessons]
